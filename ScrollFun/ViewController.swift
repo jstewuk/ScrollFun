@@ -17,6 +17,7 @@ final class ViewController: UIViewController, UIScrollViewDelegate {
     private weak var topViewTopConstraint: NSLayoutConstraint?
     private weak var contentViewTopConstraint: NSLayoutConstraint?
     
+    private var topPinned = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -37,7 +38,7 @@ final class ViewController: UIViewController, UIScrollViewDelegate {
         sView.delegate = self
         view.addSubview(sView)
         pinLeadingTrailingOfView(sView, toView: self.view)
-        matchWidthOfView(sView, toView: self.view)
+//        matchWidthOfView(sView, toView: self.view)
         let sViewTopConstraint = constraintPinAttribute(.Top, ofView: sView, toAttribute: .Bottom, toView: self.topLayoutGuide, withOffset: 0)
         self.view.addConstraint(sViewTopConstraint)
         scrollViewTopConstraint = sViewTopConstraint
@@ -67,11 +68,19 @@ final class ViewController: UIViewController, UIScrollViewDelegate {
     private  func addLabelToContentView() {
         let label = UILabel()
         label.translatesAutoresizingMaskIntoConstraints = false
-        label.text = "ContentView"
+//        label.text = "ContentView"
+        label.attributedText = htmlText()
         contentView?.addSubview(label)
         
         centerXView(label, inView: contentView!)
         contentView?.addConstraint(constraintPinTopOfView(label, toTopOfView: contentView!, withOffset: 200.0))
+    }
+    
+    private func htmlText() -> NSAttributedString? {
+        let htmlfilePath = NSBundle.mainBundle().pathForResource("body", ofType: ".html")
+        let htmlData = NSData(contentsOfFile: htmlfilePath!)
+        let options = [ NSDocumentTypeDocumentAttribute : NSHTMLTextDocumentType]
+        return try! NSAttributedString(data: htmlData!, options: options, documentAttributes: nil)
     }
     
     private let kTopHeight = CGFloat(80)
@@ -94,26 +103,35 @@ final class ViewController: UIViewController, UIScrollViewDelegate {
     
     func scrollViewDidScroll(scrollView: UIScrollView) {
 //        print("\(scrollView.contentOffset.y)")
-        let contentOffset = (scrollView.contentOffset.y)
-        switch contentOffset {
-        case let (offset) where offset < kTopVOffset:  // don't pin topView to top, let topView scroll with scrollView
-            // scroll topView with the scrollView
-            self.topViewTopConstraint?.constant = kTopVOffset - scrollView.contentOffset.y
-            // zero out offsets
-            self.scrollViewTopConstraint?.constant = 0.0
-            self.contentViewTopConstraint?.constant = 0.0
-            break;
-        case let (offset) where offset >= kTopVOffset:  // pin topView to top
-            // pin topView to the top of the vc view.
-            self.topViewTopConstraint?.constant = 0.0
-            // adjust the top of the scrollview to account for the height of the topView
-            self.scrollViewTopConstraint?.constant = kTopHeight
-            // adjust to top of the contentView within the scrollView to counteract the jump
-            self.contentViewTopConstraint?.constant = -kTopHeight
+        switch (scrollView.contentOffset.y, topPinned) {
+        case (let offset, _) where offset < kTopVOffset:  // don't pin topView to top, let topView scroll with scrollView
+            unpinTopViewFromTopWithOffset(offset)
+        case (let offset, false) where offset >= kTopVOffset:  // pin topView to top
+            pinTopViewToTop()
         default:
             break
         }
-        self.view.setNeedsUpdateConstraints()
+    }
+    
+    private func unpinTopViewFromTopWithOffset(offset: CGFloat) {
+        // scroll topView with the scrollView
+        self.topViewTopConstraint?.constant = kTopVOffset - offset
+        // zero out offsets
+        self.scrollViewTopConstraint?.constant = 0.0
+        self.contentViewTopConstraint?.constant = 0.0
+        topPinned = false
+        view.setNeedsUpdateConstraints()
+    }
+    
+    private func pinTopViewToTop() {
+        // pin topView to the top of the vc view.
+        self.topViewTopConstraint?.constant = 0.0
+        // adjust the top of the scrollview to account for the height of the topView
+        self.scrollViewTopConstraint?.constant = kTopHeight
+        // adjust to top of the contentView within the scrollView to counteract the jump
+        self.contentViewTopConstraint?.constant = -kTopHeight
+        topPinned = true
+        view.setNeedsUpdateConstraints()
     }
     
     // MARK:- Constraint helpers
